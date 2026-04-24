@@ -1,0 +1,61 @@
+id,name,gender,age,zip_code,university,hobby,exp_years,hired
+1,Arjun,Male,28,440001,IIT Bombay,Chess,5,1
+2,Priya,Female,29,440015,Local College,Cooking,6,0
+3,Aarav,Male,32,440001,BITS Pilani,Coding,8,1
+4,Ananya,Female,27,440020,Nagpur Uni,Volunteering,4,0
+5,Vihaan,Male,35,440001,IIT Delhi,Tennis,10,1
+6,Ishani,Female,31,440012,Local College,Reading,7,0
+7,Sai,Male,24,440001,IIT Madras,Gaming,2,1
+8,Myra,Female,26,440030,Nagpur Uni,Dancing,3,0
+9,Kabir,Male,40,440001,IIM A,Golf,15,1
+10,Kiara,Female,23,440040,Nursing School,Gardening,1,0
+11,Rohan,Male,29,440001,IITB,Fencing,6,1
+12,Sana,Female,30,440015,Local,Cooking,7,0
+13,Aditya,Male,33,440001,BITS,Sailing,9,1
+14,Meera,Female,28,440020,State Uni,Social Work,5,0
+15,Reyansh,Male,36,440001,IITD,Polo,11,1
+16,Zoya,Female,32,440012,Local,Knitting,8,0
+17,Vivaan,Male,25,440001,IITM,Esports,3,1
+18,Riya,Female,27,440030,State Uni,Yoga,4,0
+19,Aryan,Male,41,440001,IIMB,Lacrosse,16,1
+20,Aavya,Female,24,440040,Health Col,Baking,2,0
+21,Karthik,Male,29,440001,IITK,Squash,6,1
+22,Diya,Female,30,440015,Local,Caring,7,0
+23,Shaurya,Male,33,440001,BITS,Cricket,9,1
+24,Ira,Female,28,440020,State Uni,Charity,5,0
+25,Atharv,Male,36,440001,IITG,Flying,11,1
+26,Pari,Female,32,440012,Local,Painting,8,0
+27,Krishna,Male,25,440001,IITR,Gym,3,1
+28,Kyra,Female,27,440030,State Uni,Music,4,0
+29,Ishaan,Male,41,440001,IIMC,Stocks,16,1
+30,Gianna,Female,24,440040,Nursing,Pets,2,0
+31,Dev,Male,29,440001,IITB,Robotics,6,1
+32,Tara,Female,30,440015,Local,Poetry,7,0
+33,Kabir,Male,33,440001,BITS,Hiking,9,1
+34,Navya,Female,28,440020,State Uni,Vlogging,5,0
+35,Advait,Male,36,440001,IITD,Skiing,11,1
+36,Shanaya,Female,32,440012,Local,Movies,8,0
+37,Ayaan,Male,25,440001,IITM,Hardware,3,1
+38,Sara,Female,27,440030,State Uni,Tiktok,4,0
+39,Yuvraj,Male,41,440001,IIMA,Investing,16,1
+40,Amyra,Female,24,440040,Medical,Anime,2,0
+41,Kavya,Female,29,440001,IITB,Coding,6,1
+42,Deepak,Male,30,440015,Local,Driving,7,0
+43,Rahul,Male,33,440001,BITS,Sailing,9,1
+44,Nisha,Female,28,440020,State Uni,Social Work,5,0
+45,Siddharth,Male,36,440001,IITD,Golf,11,1
+46,Kajal,Female,32,440012,Local,Sewing,8,0
+47,Amit,Male,25,440001,IITM,Gaming,3,1
+48,Sneha,Female,27,440030,State Uni,Blogging,4,0
+49,Vikram,Male,41,440001,IIMB,Tennis,16,1
+50,Prisha,Female,24,440040,Nursing,Cooking,2,0
+51,Harsh,Male,29,440001,IITK,Coding,6,1
+52,Mona,Female,30,440015,Local,Knitting,7,0
+53,Suresh,Male,33,440001,BITS,Cricket,9,1
+54,Geeta,Female,28,440020,State Uni,Charity,5,0
+55,Manish,Male,36,440001,IITG,Flying,11,1
+56,Lata,Female,32,440012,Local,Painting,8,0
+57,Vijay,Male,25,440001,IITR,Gym,3,1
+58,Usha,Female,27,440030,State Uni,Music,4,0
+59,Rajesh,Male,41,440001,IIMC,Stocks,16,1
+60,Anita,Female,24,440040,Nursing,Pets,2,0
