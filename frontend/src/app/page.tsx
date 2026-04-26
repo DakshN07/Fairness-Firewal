@@ -19,6 +19,9 @@ export default function FairnessDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [loadingPhase, setLoadingPhase] = useState("Reading dataset...");
+  const [showScopeBanner, setShowScopeBanner] = useState(true);
+  const [exemptedColumns, setExemptedColumns] = useState("");
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   // Load API key from local storage & Mouse Spotlight
   useEffect(() => {
@@ -57,6 +60,9 @@ export default function FairnessDashboard() {
 
     const formData = new FormData();
     formData.append('file', file);
+    if (exemptedColumns.trim()) {
+      formData.append('exempted_columns', exemptedColumns.trim());
+    }
 
     const headers: Record<string, string> = {};
     if (apiKey) {
@@ -64,7 +70,7 @@ export default function FairnessDashboard() {
     }
 
     try {
-      const API_BASE = `http://${window.location.hostname}:8000/api`;
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || `http://${window.location.hostname}:8000/api`;
       const res = await fetch(`${API_BASE}/analyze-bias`, {
         method: 'POST',
         headers,
@@ -93,7 +99,7 @@ export default function FairnessDashboard() {
     }
 
     try {
-      const API_BASE = `http://${window.location.hostname}:8000/api`;
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || `http://${window.location.hostname}:8000/api`;
       const res = await fetch(`${API_BASE}/mitigate`, {
         method: 'POST',
         headers,
@@ -109,10 +115,22 @@ export default function FairnessDashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 relative flex flex-col items-center p-6 overflow-x-hidden font-sans selection:bg-blue-500/30">
-      <div className="cursor-spotlight"></div>
-      
-      {/* Background glow effects */}
+    <>
+      {showScopeBanner && (
+        <div className="w-full bg-slate-900/90 backdrop-blur-md border-b border-blue-500/30 text-slate-300 py-3 px-6 flex justify-between items-center z-50 fixed top-0 text-sm font-light">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-blue-400" />
+            <span>Fairness Firewall audits raw datasets before model training. It does not monitor live models, streaming data, or real-time inference pipelines.</span>
+          </div>
+          <button onClick={() => setShowScopeBanner(false)} className="hover:text-white transition-colors cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      <main className="min-h-screen bg-slate-950 relative flex flex-col items-center p-6 overflow-x-hidden font-sans selection:bg-blue-500/30 pt-20">
+        <div className="cursor-spotlight"></div>
+        
+        {/* Background glow effects */}
       <div className="glow-purple top-1/4 left-1/4 opacity-70"></div>
       <div className="glow-blue bottom-1/4 right-1/4 opacity-70"></div>
 
@@ -203,14 +221,58 @@ export default function FairnessDashboard() {
           )}
         </div>
 
+        {/* Advanced Settings */}
+        <div className="mt-6 w-full max-w-xl mx-auto z-10 relative">
+          <button 
+            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+            className="text-slate-400 text-sm flex items-center justify-center gap-2 w-full hover:text-white transition-colors cursor-pointer"
+          >
+            Advanced Settings {isAdvancedOpen ? '▼' : '▶'}
+          </button>
+          {isAdvancedOpen && (
+            <div className="mt-4 p-4 glass rounded-xl animate-in fade-in duration-300 border border-slate-700/50 text-left">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Legal Exceptions (Exclude Columns)
+              </label>
+              <input 
+                type="text" 
+                value={exemptedColumns}
+                onChange={(e) => setExemptedColumns(e.target.value)}
+                placeholder="e.g., age, gender (comma separated)"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 text-sm"
+              />
+              <p className="text-xs text-slate-500 mt-2 font-light">
+                Exclude columns from fairness scoring due to legal or policy exemptions (e.g., age-gated products).
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Results Area styled with Premium Glassmorphism */}
         {result && (
           <div className="mt-12 text-left animate-in fade-in slide-in-from-bottom-8 duration-500 relative overflow-hidden flex flex-col gap-8">
             
+            {/* Data Sufficiency Warning */}
+            {(result.small_dataset || result.sparse_subgroups) && (
+              <div className="glass p-6 rounded-2xl border border-yellow-500/50 bg-yellow-500/10 flex items-center gap-4 relative z-10 overflow-hidden mb-2">
+                <AlertTriangle className="w-8 h-8 text-yellow-400 flex-shrink-0" />
+                <p className="text-white text-sm md:text-base font-light">
+                  ⚠️ <strong>Data Sufficiency Warning:</strong> {result.small_dataset ? "Dataset may be too small (<300 rows) for statistically reliable fairness conclusions. " : ""}{result.sparse_subgroups ? "Some protected subgroups have very few samples (<30), making statistical metrics unreliable. " : ""}Results should be interpreted with caution.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
               <div className="glass p-6 rounded-2xl flex flex-col gap-2 relative overflow-hidden group hover:border-blue-500/50 transition-colors">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Scale className="w-16 h-16"/></div>
-                <p className="text-sm font-medium text-blue-300 uppercase tracking-widest">Max SPD Score</p>
+                <p className="text-sm font-medium text-blue-300 uppercase tracking-widest flex items-center justify-between">
+                  Max SPD Score
+                  {(result.small_dataset || result.sparse_subgroups) && (
+                    <span className="bg-yellow-500/20 text-yellow-300 text-[10px] px-2 py-1 rounded-full border border-yellow-500/30 whitespace-nowrap ml-2">
+                      Low Confidence — Small Sample
+                    </span>
+                  )}
+                </p>
                 <div className="flex items-end gap-2">
                   <p className={`text-6xl font-mono font-bold mix-blend-screen ${result.math_score > 0.1 ? 'text-red-400' : 'text-green-400'}`}>
                     {result.math_score ? (result.math_score).toFixed(2) : '0.00'}
@@ -269,5 +331,6 @@ export default function FairnessDashboard() {
         )}
       </div>
     </main>
+    </>
   );
 }

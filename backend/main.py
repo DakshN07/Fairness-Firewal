@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from google import genai
@@ -19,8 +19,8 @@ app = FastAPI(
 # Enable CORS for the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "*"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -43,7 +43,7 @@ def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/analyze-bias")
-async def analyze_bias(request: Request, file: UploadFile = File(...)):
+async def analyze_bias(request: Request, file: UploadFile = File(...), exempted_columns: str = Form(None)):
     df = pd.read_csv(file.file)
     headers = df.columns.tolist()
     sample = df.head(5).to_json()
@@ -62,7 +62,8 @@ async def analyze_bias(request: Request, file: UploadFile = File(...)):
         Identify the roles of these columns for a fairness audit.
         Columns: {headers}
         Sample: {sample}
-        Return ONLY a JSON with keys: "protected_columns", "target_column", "neutral_columns".
+        Also determine if the target column relates to a high-risk prediction category (e.g., recidivism, creditworthiness, employability, insurance risk, parole eligibility).
+        Return ONLY a JSON with keys: "protected_columns", "target_column", "neutral_columns", "is_high_risk_objective" (boolean).
         """
         # Using gemini-2.0-flash to prevent 500 errors from experimental endpoints
         schema_res = active_client.models.generate_content(model="gemini-2.0-flash", contents=schema_prompt)
@@ -70,6 +71,17 @@ async def analyze_bias(request: Request, file: UploadFile = File(...)):
 
         target = schema.get('target_column', headers[-1])
         protected_list = schema.get('protected_columns', [])
+        is_high_risk = schema.get('is_high_risk_objective', False)
+
+        if exempted_columns:
+            exempted_list = [x.strip() for x in exempted_columns.split(",")]
+            protected_list = [col for col in protected_list if col not in exempted_list]
+        else:
+            exempted_list = []
+
+        total_rows = len(df)
+        small_dataset = total_rows < 300
+        sparse_subgroups = False
 
         # STEP 2: Loop through every protected column and run the Math Matrix
         report = []
@@ -77,6 +89,11 @@ async def analyze_bias(request: Request, file: UploadFile = File(...)):
         for col in protected_list:
             if col not in df.columns or target not in df.columns:
                 continue
+                
+            # Check subgroup sizes
+            col_counts = df[col].value_counts()
+            if (col_counts < 30).any():
+                sparse_subgroups = True
                 
             try:
                 # Calculate SPD (Statistical Parity Difference)
@@ -101,6 +118,12 @@ async def analyze_bias(request: Request, file: UploadFile = File(...)):
 
         # STEP 3: Final Reasoning for PPT
         final_prompt = f"Explain these Statistical Parity Difference scores to an executive: {report}. Format it beautifully in Markdown."
+        if exempted_list:
+            final_prompt += f"\n\nNote: The user explicitly exempted the following columns due to legal or policy reasons: {exempted_list}. Explicitly list them in the report under an 'Excluded — Legal or Policy Exemption' heading."
+        if is_high_risk:
+            final_prompt += f"\n\nBegin your report with a '### 🚨 High-Risk Objective Warning' section stating: 'Predicting {target} from historical data may encode systemic injustices regardless of dataset balance. Consider whether this prediction objective should exist before proceeding to model training.'"
+        final_prompt += "\n\nIf multiple protected attributes show high SPD scores (>0.1), analyze the data for potential 'Fairness Tension' (i.e., if mitigating bias for one group might negatively impact another). If tension exists, create a distinct section titled '### ⚖️ Fairness Tension Alert' that names the conflicting groups, explains the trade-off, and concludes exactly with: 'Resolving this tension requires policy and legal review beyond automated auditing.'"
+
         response = active_client.models.generate_content(model="gemini-2.0-flash", contents=final_prompt)
         ai_reasoning = response.text
         math_score = max_spd
@@ -115,7 +138,9 @@ async def analyze_bias(request: Request, file: UploadFile = File(...)):
 
     return {
         "math_score": math_score,
-        "ai_reasoning": ai_reasoning
+        "ai_reasoning": ai_reasoning,
+        "small_dataset": small_dataset,
+        "sparse_subgroups": sparse_subgroups
     }
 
 @app.post("/api/mitigate")

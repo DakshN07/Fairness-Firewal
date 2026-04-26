@@ -64,6 +64,31 @@ Open your browser and navigate to `http://localhost:3000`. You can upload the in
 
 ---
 
+## ☁️ Deployment
+
+### Deploying the Backend to Google Cloud Run
+The FastAPI backend is fully compatible with Google Cloud Run.
+1. Make sure you have the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated.
+2. Navigate to the `backend/` directory.
+3. Deploy directly using source code:
+   ```bash
+   gcloud run deploy fairness-firewall-backend --source . --port 8000 --allow-unauthenticated
+   ```
+4. Note the provided service URL.
+
+### Deploying the Frontend to Vercel
+The Next.js frontend is optimized for deployment on Vercel.
+1. Push your code to a GitHub repository.
+2. Go to your [Vercel Dashboard](https://vercel.com/) and click **Add New Project**.
+3. Import your GitHub repository and set the **Root Directory** to `frontend`.
+4. In the **Environment Variables** section, add:
+   - `NEXT_PUBLIC_API_URL`: Set this to your deployed Cloud Run backend URL (e.g., `https://fairness-firewall-backend-xyz.run.app/api`).
+5. Click **Deploy**.
+
+*Note: The user-injected API key flow works seamlessly across deployments. The backend is configured to accept cross-origin `Authorization` headers securely.*
+
+---
+
 ## 🔐 API Key Configuration
 You can securely inject your own Google AI Studio API key directly from the frontend dashboard by clicking the **Connect API** button. The key is securely saved to your browser's local storage and used specifically for your session's backend HTTP requests.
 
