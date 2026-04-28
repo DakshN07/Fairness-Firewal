@@ -27,10 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Antigravity automatically injects secrets into your environment
-api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
-
+# Top-level client removed to prevent crash on empty API keys before rotation takes over
 import time
 
 def clean_json(text):
