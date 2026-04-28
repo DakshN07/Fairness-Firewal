@@ -99,6 +99,11 @@ def generate_with_fallback(prompt, custom_key=None):
 def read_root():
     return {"message": "Welcome to the Fairness Firewall API"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy"}
