@@ -68,24 +68,24 @@ def generate_with_fallback(prompt, custom_key=None):
             return response
         except Exception as e:
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                print(f"KEY {key[:10]}... hit 429 on 2.0-flash. Retrying with 1.5-flash...")
+                print(f"KEY {key[:10]}... hit 429 on 2.0-flash. Retrying with 2.5-flash...")
                 
-                # 2. Try Gemini 1.5 Flash (same key)
+                # 2. Try Gemini 2.5 Flash (same key)
                 try:
                     response = active_client.models.generate_content(
-                        model="gemini-1.5-flash", 
+                        model="gemini-2.5-flash", 
                         contents=prompt
                     )
                     return response
-                except Exception as e1_5:
-                    if "429" in str(e1_5) or "RESOURCE_EXHAUSTED" in str(e1_5):
-                        print(f"KEY {key[:10]}... hit 429 on 1.5-flash. Waiting 2 seconds before rotating key...")
+                except Exception as e2_5:
+                    if "429" in str(e2_5) or "RESOURCE_EXHAUSTED" in str(e2_5):
+                        print(f"KEY {key[:10]}... hit 429 on 2.5-flash. Waiting 2 seconds before rotating key...")
                         time.sleep(2)
-                        last_error = e1_5
+                        last_error = e2_5
                         continue # Move to next key
                     else:
-                        print(f"KEY {key[:10]}... failed on 1.5-flash with error: {e1_5}. Rotating key...")
-                        last_error = e1_5
+                        print(f"KEY {key[:10]}... failed on 2.5-flash with error: {e2_5}. Rotating key...")
+                        last_error = e2_5
                         continue
             else:
                 print(f"KEY {key[:10]}... failed on 2.0-flash with error: {e}. Rotating key...")
