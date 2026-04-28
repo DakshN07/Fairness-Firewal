@@ -81,3 +81,22 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* Animated Background Marquee */
+@keyframes slide-bg {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.bg-marquee {
+  white-space: nowrap;
+  animation: slide-bg 60s linear infinite;
+  filter: blur(10px);
+  opacity: 0.05;
+  font-size: 20rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 1);
+  pointer-events: none;
+  user-select: none;
+  display: inline-block;
+}

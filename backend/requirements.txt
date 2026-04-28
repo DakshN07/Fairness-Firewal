@@ -4,4 +4,7 @@ google-genai
 python-dotenv==1.0.1
 pydantic==2.6.4
 pandas
+polars
+httpx
+pyarrow
 python-multipart

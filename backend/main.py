@@ -4,6 +4,8 @@ import re
 from fastapi import FastAPI, UploadFile, File, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+import polars as pl
+import io
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -43,20 +45,31 @@ def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/analyze-bias")
-async def analyze_bias(request: Request, file: UploadFile = File(...), exempted_columns: str = Form(None)):
-    df = pd.read_csv(file.file)
-    headers = df.columns.tolist()
-    sample = df.head(5).to_json()
-
-    # Check for dynamic API key from frontend
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        custom_key = auth_header.split(" ")[1]
-        active_client = genai.Client(api_key=custom_key)
-    else:
-        active_client = client
-
+async def analyze_bias(request: Request, file: UploadFile = File(None), dataset_url: str = Form(None), exempted_columns: str = Form(None)):
+    small_dataset = False
+    sparse_subgroups = False
     try:
+        if dataset_url:
+            df = pl.read_csv(dataset_url)
+        elif file:
+            df = pl.read_csv(io.BytesIO(await file.read()))
+        else:
+            raise ValueError("Must provide either file or dataset_url")
+            
+        headers = df.columns
+        sample = df.head(5).to_pandas().to_json()
+        
+        total_rows = len(df)
+        small_dataset = total_rows < 300
+
+        # Check for dynamic API key from frontend
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            custom_key = auth_header.split(" ")[1]
+            active_client = genai.Client(api_key=custom_key)
+        else:
+            active_client = client
+
         # STEP 1: Gemma 4 identifies the schema dynamically
         schema_prompt = f"""
         Identify the roles of these columns for a fairness audit.
@@ -79,10 +92,6 @@ async def analyze_bias(request: Request, file: UploadFile = File(...), exempted_
         else:
             exempted_list = []
 
-        total_rows = len(df)
-        small_dataset = total_rows < 300
-        sparse_subgroups = False
-
         # STEP 2: Loop through every protected column and run the Math Matrix
         report = []
         max_spd = 0.0
@@ -91,23 +100,28 @@ async def analyze_bias(request: Request, file: UploadFile = File(...), exempted_
                 continue
                 
             # Check subgroup sizes
-            col_counts = df[col].value_counts()
-            if (col_counts < 30).any():
+            col_counts = df.get_column(col).value_counts()
+            if col_counts["count"].min() < 30:
                 sparse_subgroups = True
                 
             try:
                 # Calculate SPD (Statistical Parity Difference)
-                rates = pd.to_numeric(df[target], errors='coerce').groupby(df[col]).mean()
-                spd = float(rates.max() - rates.min())
-                if pd.isna(spd): spd = 0.0
+                rates = (
+                    df.with_columns(pl.col(target).cast(pl.Float64, strict=False))
+                    .group_by(col)
+                    .agg(pl.col(target).mean())
+                )
+                spd = float(rates.get_column(target).max() - rates.get_column(target).min())
+                if pd.isna(spd) or spd is None: spd = 0.0
             except:
                 spd = 0.0
 
             max_spd = max(max_spd, spd)
             
             # Calculate Representation Skew
-            counts = df[col].value_counts(normalize=True)
-            underrepresented = counts[counts < 0.1].index.tolist()
+            total_count = len(df)
+            counts = df.get_column(col).value_counts()
+            underrepresented = counts.filter(pl.col("count") / total_count < 0.1).get_column(col).to_list()
 
             report.append({
                 "attribute": col,
@@ -134,7 +148,7 @@ async def analyze_bias(request: Request, file: UploadFile = File(...), exempted_
             f.write(traceback.format_exc())
         print(f"CRITICAL API ERROR (Analysis): {e}")
         math_score = 0.45
-        ai_reasoning = "> ⚠️ **Notice: Live AI API Unavailable.**\n> *The model could not be reached (e.g., quota exceeded or invalid key). Displaying a localized simulation for your demonstration.* \n\n---\n\n### Executive Audit Report (Simulated)\n\n**Dataset Overview:**\n- **Target Column**: `hired`\n- **Protected Columns**: `zip_code`, `gender`\n\n**Findings:**\nThe Statistical Parity Difference (SPD) score peaked at **0.45** for the `zip_code` attribute. This indicates a significant disparity across different demographic regions (often an indicator of historical redlining). Any SPD score over 0.10 is considered highly biased and requires mitigation."
+        ai_reasoning = f"> ⚠️ **Notice: Live AI API Unavailable.**\n> *The backend encountered an error: `{e}`. Displaying a localized simulation for your demonstration.* \n\n---\n\n### Executive Audit Report (Simulated)\n\n**Dataset Overview:**\n- **Target Column**: `hired`\n- **Protected Columns**: `zip_code`, `gender`\n\n**Findings:**\nThe Statistical Parity Difference (SPD) score peaked at **0.45** for the `zip_code` attribute. This indicates a significant disparity across different demographic regions (often an indicator of historical redlining). Any SPD score over 0.10 is considered highly biased and requires mitigation."
 
     return {
         "math_score": math_score,
@@ -144,9 +158,15 @@ async def analyze_bias(request: Request, file: UploadFile = File(...), exempted_
     }
 
 @app.post("/api/mitigate")
-async def mitigate_bias(request: Request, file: UploadFile = File(...)):
-    df = pd.read_csv(file.file)
-    headers = df.columns.tolist()
+async def mitigate_bias(request: Request, file: UploadFile = File(None), dataset_url: str = Form(None)):
+    if dataset_url:
+        df = pl.read_csv(dataset_url)
+    elif file:
+        df = pl.read_csv(io.BytesIO(await file.read()))
+    else:
+        raise ValueError("Must provide either file or dataset_url")
+        
+    headers = df.columns
     
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
