@@ -31,10 +31,72 @@ app.add_middleware(
 api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 
+import time
+
 def clean_json(text):
     text = re.sub(r'```json\n?', '', text)
     text = re.sub(r'```\n?', '', text)
     return text.strip()
+
+def generate_with_fallback(prompt, custom_key=None):
+    # Determine the pool of keys
+    if custom_key:
+        keys = [custom_key]
+    else:
+        keys = [
+            os.getenv("KEY_1"),
+            os.getenv("KEY_2"),
+            os.getenv("KEY_3"),
+            os.getenv("GEMINI_API_KEY"),
+            os.getenv("GOOGLE_API_KEY")
+        ]
+        # Clean invalid or empty keys
+        keys = [k for k in keys if k and "YOUR_" not in k and "AIzaSy" in k]
+        # Remove duplicates while preserving order
+        keys = list(dict.fromkeys(keys))
+        
+    if not keys:
+        raise ValueError("No valid Gemini API keys found in environment or Authorization header.")
+
+    last_error = None
+    for key in keys:
+        active_client = genai.Client(api_key=key)
+        
+        # 1. Try Gemini 2.0 Flash
+        try:
+            response = active_client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=prompt
+            )
+            return response
+        except Exception as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print(f"KEY {key[:10]}... hit 429 on 2.0-flash. Retrying with 1.5-flash...")
+                
+                # 2. Try Gemini 1.5 Flash (same key)
+                try:
+                    response = active_client.models.generate_content(
+                        model="gemini-1.5-flash", 
+                        contents=prompt
+                    )
+                    return response
+                except Exception as e1_5:
+                    if "429" in str(e1_5) or "RESOURCE_EXHAUSTED" in str(e1_5):
+                        print(f"KEY {key[:10]}... hit 429 on 1.5-flash. Waiting 2 seconds before rotating key...")
+                        time.sleep(2)
+                        last_error = e1_5
+                        continue # Move to next key
+                    else:
+                        print(f"KEY {key[:10]}... failed on 1.5-flash with error: {e1_5}. Rotating key...")
+                        last_error = e1_5
+                        continue
+            else:
+                print(f"KEY {key[:10]}... failed on 2.0-flash with error: {e}. Rotating key...")
+                last_error = e
+                continue
+                
+    # If all keys failed
+    raise last_error
 
 @app.get("/")
 def read_root():
@@ -64,11 +126,9 @@ async def analyze_bias(request: Request, file: UploadFile = File(None), dataset_
 
         # Check for dynamic API key from frontend
         auth_header = request.headers.get("Authorization")
+        custom_key = None
         if auth_header and auth_header.startswith("Bearer "):
             custom_key = auth_header.split(" ")[1]
-            active_client = genai.Client(api_key=custom_key)
-        else:
-            active_client = client
 
         # STEP 1: Gemma 4 identifies the schema dynamically
         schema_prompt = f"""
@@ -78,8 +138,8 @@ async def analyze_bias(request: Request, file: UploadFile = File(None), dataset_
         Also determine if the target column relates to a high-risk prediction category (e.g., recidivism, creditworthiness, employability, insurance risk, parole eligibility).
         Return ONLY a JSON with keys: "protected_columns", "target_column", "neutral_columns", "is_high_risk_objective" (boolean).
         """
-        # Using gemini-2.0-flash to prevent 500 errors from experimental endpoints
-        schema_res = active_client.models.generate_content(model="gemini-2.0-flash", contents=schema_prompt)
+        # Using the rotation framework
+        schema_res = generate_with_fallback(schema_prompt, custom_key=custom_key)
         schema = json.loads(clean_json(schema_res.text))
 
         target = schema.get('target_column', headers[-1])
@@ -138,7 +198,7 @@ async def analyze_bias(request: Request, file: UploadFile = File(None), dataset_
             final_prompt += f"\n\nBegin your report with a '### 🚨 High-Risk Objective Warning' section stating: 'Predicting {target} from historical data may encode systemic injustices regardless of dataset balance. Consider whether this prediction objective should exist before proceeding to model training.'"
         final_prompt += "\n\nIf multiple protected attributes show high SPD scores (>0.1), analyze the data for potential 'Fairness Tension' (i.e., if mitigating bias for one group might negatively impact another). If tension exists, create a distinct section titled '### ⚖️ Fairness Tension Alert' that names the conflicting groups, explains the trade-off, and concludes exactly with: 'Resolving this tension requires policy and legal review beyond automated auditing.'"
 
-        response = active_client.models.generate_content(model="gemini-2.0-flash", contents=final_prompt)
+        response = generate_with_fallback(final_prompt, custom_key=custom_key)
         ai_reasoning = response.text
         math_score = max_spd
 
@@ -169,11 +229,9 @@ async def mitigate_bias(request: Request, file: UploadFile = File(None), dataset
     headers = df.columns
     
     auth_header = request.headers.get("Authorization")
+    custom_key = None
     if auth_header and auth_header.startswith("Bearer "):
         custom_key = auth_header.split(" ")[1]
-        active_client = genai.Client(api_key=custom_key)
-    else:
-        active_client = client
 
     prompt = f"""
     Based on the dataset with columns {headers}, suggest concrete mitigation strategies 
@@ -181,10 +239,7 @@ async def mitigate_bias(request: Request, file: UploadFile = File(None), dataset
     Format your response in Markdown.
     """
     try:
-        res = active_client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
-        )
+        res = generate_with_fallback(prompt, custom_key=custom_key)
         suggestion = res.text
     except Exception as e:
         print(f"CRITICAL API ERROR (Mitigation): {e}")
