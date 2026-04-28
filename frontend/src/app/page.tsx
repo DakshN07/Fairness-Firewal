@@ -85,7 +85,9 @@ export default function FairnessDashboard() {
     }
 
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || `http://${window.location.hostname}:8000/api`;
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL 
+        ? (process.env.NEXT_PUBLIC_API_URL.endsWith('/api') ? process.env.NEXT_PUBLIC_API_URL : `${process.env.NEXT_PUBLIC_API_URL}/api`)
+        : `http://${window.location.hostname}:8000/api`;
       const res = await fetch(`${API_BASE}/analyze-bias`, {
         method: 'POST',
         headers,
@@ -115,7 +117,9 @@ export default function FairnessDashboard() {
     }
 
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || `http://${window.location.hostname}:8000/api`;
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL 
+        ? (process.env.NEXT_PUBLIC_API_URL.endsWith('/api') ? process.env.NEXT_PUBLIC_API_URL : `${process.env.NEXT_PUBLIC_API_URL}/api`)
+        : `http://${window.location.hostname}:8000/api`;
       const res = await fetch(`${API_BASE}/mitigate`, {
         method: 'POST',
         headers,
